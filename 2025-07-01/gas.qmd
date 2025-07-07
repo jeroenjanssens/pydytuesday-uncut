@@ -1,0 +1,117 @@
+---
+title: "Weekly US Gas Prices"
+format: html
+jupyter: python3
+---
+
+## Setup
+
+```{python}
+import polars as pl
+from plotnine import *
+```
+
+
+## Download Data
+
+```{python}
+prices = pl.read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/main/data/2025/2025-07-01/weekly_gas_prices.csv', null_values=["NA"], schema_overrides={"date": pl.Date})
+```
+
+```{python}
+prices
+```
+
+
+## Clean
+
+No cleaning is needed so far
+
+```{python}
+counts = prices.group_by("fuel", "formulation", "grade").agg(pl.len())
+```
+
+Filter only certain types of grade and formulation
+
+```{python}
+diesel = (
+    (pl.col("fuel") == "diesel") &
+    (pl.col("grade") == "all")
+)
+prices.filter(diesel).group_by("date").len().filter(pl.col("len") > 1)
+
+gasoline = (
+    (pl.col("fuel") == "gasoline")
+    & (pl.col("grade") == "regular")
+    & (pl.col("formulation") == "conventional")
+)
+
+prices.filter(gasoline).group_by("date").len().filter(pl.col("len") > 1)
+simple_prices = prices.filter(diesel | gasoline)
+```
+
+
+## Viz
+
+```{python}
+(
+    prices.filter(grade="all")
+    >> ggplot(aes(x="date", y="price", group="fuel"))
+    + geom_line()
+    + facet_wrap("fuel")
+)
+```
+
+```{python}
+prices.filter(grade="all", fuel="diesel").head()
+```
+
+
+```{python}
+prices.filter(pl.col("date") == "1998-11-16")
+```
+
+## Viz Simple Prices
+
+```{python}
+(
+    simple_prices
+    >> ggplot(aes(x="date", y="price", color="fuel"))
+    + geom_line(size=1)
+)
+```
+
+
+## Correlation
+
+```{python}
+gasoline_vs_diesel = simple_prices.pivot(index="date", on="fuel", values="price")
+
+(
+    gasoline_vs_diesel
+    >> ggplot(aes(x="gasoline", y="diesel", color="date"))
+    + geom_point()
+)
+```
+
+
+## Final Visualization
+
+TODO:
+
+- Line colors
+- Title
+- Rotate X-tick labels
+- Font / Theme
+
+```{python}
+(
+    simple_prices
+    >> ggplot(aes(x="date", y="price", color="fuel"))
+    + geom_line(size=1)
+    + scale_color_manual(["purple", "green"])
+    + scale_x_date(date_labels="%Y", date_breaks="4 years")
+    + labs(title="Weekly US Gas Prices", color="Fuel Type", x="Date", y="Price")
+    + theme(axis_text_x=element_text(angle=45, hjust=1))
+)
+```
